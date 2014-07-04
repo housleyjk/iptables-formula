@@ -55,10 +55,9 @@
   # Generate ipsets for all services that we have information about
   {%- for service_name, service_details in firewall.get('services', {}).items() %}  
     {% set block_nomatch = service_details.get('block_nomatch', False) %}
-    {% set invert_allow_all = service_details.get('allow_all', False) %}
 
     # Allow rules for ips/subnets
-    {%- for ip in service_details.get('ips', invert_allow_all or ['0.0.0.0/0']) %}
+    {%- for ip in service_details.get('ips', ['0.0.0.0/0']) %}
       iptables_{{service_name}}_allow_{{ip}}:
         iptables.append:
           - table: filter
