@@ -4,6 +4,7 @@
   {% set install = firewall.get('install', False) %}
   {% set strict_mode = firewall.get('strict', False) %}
   {% set global_block_nomatch = firewall.get('block_nomatch', False) %}
+  # TODO: move to map.jinja
   {% set packages = salt['grains.filter_by']({
     'Debian': ['iptables', 'iptables-persistent'],
     'RedHat': ['iptables'],
@@ -13,7 +14,7 @@
       # Install required packages for firewalling      
       iptables_packages:
         pkg.installed:
-          - pkgs:
+          - names:
             {%- for pkg in packages %}
             - {{pkg}}
             {%- endfor %}
@@ -45,7 +46,7 @@
         iptables.set_policy:
           - table: filter
           - chain: INPUT
-          - policy: DROP
+          - policy: REJECT
           - require:
             - iptables: iptables_allow_localhost
             - iptables: iptables_allow_established
@@ -56,16 +57,17 @@
     {% set block_nomatch = service_details.get('block_nomatch', False) %}
 
     # Allow rules for ips/subnets
-    {%- for ip in service_details.get('ips_allow',{}) %}
+    {%- for ip in service_details.get('ips', ['0.0.0.0/0']) %}
       iptables_{{service_name}}_allow_{{ip}}:
         iptables.append:
           - table: filter
           - chain: INPUT
           - jump: ACCEPT
-          - source: {{ ip }}
-          - dport: {{ service_name }}
+          - source: {{ip}}
+          - dport: {{service_name}}
           - proto: tcp
           - comment: {{service_name}}_allow_{{ip}}
+          - match: comment
           - save: True
     {%- endfor %}
 
@@ -74,7 +76,6 @@
       # If strict mode is disabled we may want to block anything else
       iptables_{{service_name}}_deny_other:
         iptables.append:
-          - position: last
           - table: filter
           - chain: INPUT
           - jump: REJECT
@@ -83,18 +84,5 @@
           - save: True
     {%- endif %}    
 
-  {%- endfor %}
-  {%- for service_name, service_details in firewall.get('nat', {}).items() %}  
-    {% set dest_ip = service_details.get('dest_iface', {})|default(False) %}
-    {%- for ip in service_details.get('ips_allow',{}) %}
-      iptables_{{service_name}}_allow_{{ip}}:
-        iptables.append:
-          - table: nat 
-          - chain: POSTROUTING 
-          - jump: MASQUERADE
-          - o: {{ service_name }} 
-          - source: {{ ip }}
-          - save: True
-    {%- endfor %}
   {%- endfor %}
 {%- endif %}
